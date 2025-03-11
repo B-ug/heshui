@@ -21,7 +21,7 @@
 1. 克隆仓库：
 
 ```bash
-git clone https://github.com/yourusername/heshui.git
+git clone https://github.com/B-ug/heshui.git
 cd heshui
 ```
 
@@ -46,6 +46,13 @@ poetry run python run.py
 3. 配置设置：
    - 点击主窗口的"设置"按钮
    - 可以设置提醒间隔、每日目标、提醒文本等
+
+## 打包
+1. 执行打包程序
+
+```bash
+poetry run python build_exe.py
+```
 
 ## 开发说明
 
