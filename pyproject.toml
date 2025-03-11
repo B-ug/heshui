@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "heshui"
+version = "0.1.0"
+description = "一个基于 PyQt6 的喝水提醒软件"
+authors = ["B-ug <951048552@qq.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "3.12.7"
+PyQt6 = "6.4.2"
+appdirs = "^1.4.4"
+sqlalchemy = "^2.0.27"
+pyinstaller = "^6.12.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-qt = "^4.4.0"
+black = "^24.1.1"
+isort = "^5.13.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
