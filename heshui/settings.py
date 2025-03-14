@@ -4,11 +4,20 @@
 """
 from datetime import time
 from typing import Dict, Any, List
+import os
+import sys
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                            QSpinBox, QLineEdit, QCheckBox, QPushButton,
                            QListWidget, QTimeEdit, QMessageBox, QListWidgetItem)
+
+try:
+    import win32api
+    import win32con
+    HAS_WIN32API = True
+except ImportError:
+    HAS_WIN32API = False
 
 from heshui.config import Config
 from heshui.models import DatabaseManager
@@ -81,6 +90,13 @@ class SettingsDialog(QDialog):
         self.minimize_check = QCheckBox('启动时最小化')
         layout.addWidget(self.minimize_check)
         
+        # 开机自启动设置
+        self.autostart_check = QCheckBox('开机自动启动')
+        if not HAS_WIN32API:
+            self.autostart_check.setEnabled(False)
+            self.autostart_check.setToolTip('需要安装pywin32模块才能使用此功能')
+        layout.addWidget(self.autostart_check)
+        
         # 按钮
         button_layout = QHBoxLayout()
         save_btn = QPushButton('保存')
@@ -98,6 +114,10 @@ class SettingsDialog(QDialog):
         self.text_edit.setText(settings['reminder_text'])
         self.mute_check.setChecked(settings['mute'])
         self.minimize_check.setChecked(settings['start_minimized'])
+        
+        # 加载开机自启动设置
+        if HAS_WIN32API:
+            self.autostart_check.setChecked(settings.get('autostart', False))
         
         # 加载提醒时间点
         self.updateTimeList()
@@ -142,6 +162,55 @@ class SettingsDialog(QDialog):
         
         self.updateTimeList()
     
+    def set_autostart(self, enable: bool) -> bool:
+        """设置或取消开机自启动。
+        
+        Args:
+            enable: 是否启用开机自启动
+            
+        Returns:
+            bool: 操作是否成功
+        """
+        if not HAS_WIN32API:
+            return False
+            
+        try:
+            # 获取当前应用程序路径
+            app_path = os.path.abspath(sys.argv[0])
+            # 如果是 .py 文件，需要使用 pythonw 启动
+            if app_path.endswith('.py'):
+                app_path = f'pythonw "{app_path}"'
+            # 如果是 .exe 文件，直接使用路径
+            elif app_path.endswith('.exe'):
+                app_path = f'"{app_path}"'
+                
+            # 打开注册表
+            key = win32api.RegOpenKey(
+                win32con.HKEY_CURRENT_USER,
+                r'Software\Microsoft\Windows\CurrentVersion\Run',
+                0, 
+                win32con.KEY_SET_VALUE
+            )
+            
+            app_name = "HeShuiApp"
+            
+            if enable:
+                # 设置开机自启动
+                win32api.RegSetValueEx(key, app_name, 0, win32con.REG_SZ, app_path)
+            else:
+                # 取消开机自启动
+                try:
+                    win32api.RegDeleteValue(key, app_name)
+                except Exception:
+                    # 如果键不存在，忽略错误
+                    pass
+                    
+            win32api.RegCloseKey(key)
+            return True
+        except Exception as e:
+            print(f"设置开机自启动失败: {e}")
+            return False
+    
     def saveSettings(self) -> None:
         """保存设置。"""
         settings = {
@@ -150,6 +219,12 @@ class SettingsDialog(QDialog):
             'mute': self.mute_check.isChecked(),
             'start_minimized': self.minimize_check.isChecked()
         }
+        
+        # 保存开机自启动设置
+        if HAS_WIN32API:
+            autostart = self.autostart_check.isChecked()
+            settings['autostart'] = autostart
+            self.set_autostart(autostart)
         
         for key, value in settings.items():
             self.config.set(key, value)

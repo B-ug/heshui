@@ -21,6 +21,7 @@ class Config:
         "reminder_text": "该喝水啦！补充水分很重要哦~",  # 提醒文本
         "mute": False,  # 是否静音
         "start_minimized": False,  # 是否以最小化方式启动
+        "autostart": False,  # 是否开机自启动
     }
     
     def __new__(cls) -> 'Config':
