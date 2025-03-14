@@ -12,11 +12,12 @@ from PyQt6.QtCore import QTimer, Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QIcon, QPainter, QAction, QConicalGradient, QColor, QPen
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QMenu, QSystemTrayIcon,
                            QWidget, QVBoxLayout, QPushButton, QLabel,
-                           QProgressBar, QMessageBox, QHBoxLayout)
+                           QProgressBar, QMessageBox, QHBoxLayout, QDialog)
 
 from heshui.config import Config
 from heshui.models import DatabaseManager
 from heshui.settings import SettingsDialog
+from heshui.stats import WeeklyStatsWidget
 
 
 class CircularProgress(QWidget):
@@ -144,6 +145,47 @@ class CircularProgress(QWidget):
         percent_rect.moveLeft(start_x + number_width + side//20)  # 添加间距
         painter.drawText(percent_rect, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), "%")
 
+
+class StatsDialog(QDialog):
+    """统计对话框类。"""
+    
+    def __init__(self, parent=None):
+        """初始化统计对话框。
+        
+        Args:
+            parent: 父窗口
+        """
+        super().__init__(parent)
+        self.setWindowTitle("饮水统计")
+        self.setMinimumSize(600, 400)
+        
+        try:
+            layout = QVBoxLayout(self)
+            
+            # 添加周统计视图
+            try:
+                self.weekly_stats = WeeklyStatsWidget(self)
+                layout.addWidget(self.weekly_stats)
+            except Exception as e:
+                print(f"创建周统计视图时出错: {e}")
+                error_label = QLabel(f"无法加载统计图表: {str(e)}")
+                error_label.setWordWrap(True)
+                error_label.setStyleSheet("color: red;")
+                layout.addWidget(error_label)
+            
+            # 关闭按钮
+            button_layout = QHBoxLayout()
+            close_btn = QPushButton("关闭")
+            close_btn.clicked.connect(self.accept)
+            button_layout.addStretch()
+            button_layout.addWidget(close_btn)
+            layout.addLayout(button_layout)
+        except Exception as e:
+            print(f"初始化统计对话框时出错: {e}")
+            import traceback
+            traceback.print_exc()
+
+
 class MainWindow(QMainWindow):
     """主窗口类。"""
     
@@ -175,6 +217,27 @@ class MainWindow(QMainWindow):
         top_bar = QHBoxLayout()
         top_bar.setAlignment(Qt.AlignmentFlag.AlignRight)
         
+        # 创建统计按钮
+        stats_btn = QPushButton()
+        stats_btn.setFixedSize(32, 32)
+        stats_btn.setStyleSheet("""
+            QPushButton {
+                border: none;
+                background-color: transparent;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 0, 0, 0.1);
+                border-radius: 16px;
+            }
+        """)
+        # 使用 SVG 图标
+        icon_path = Path(__file__).parent / 'resources' / 'icons' / 'chart.svg'
+        stats_btn.setIcon(QIcon(str(icon_path)))
+        stats_btn.setIconSize(QSize(20, 20))
+        stats_btn.setToolTip("查看统计")
+        stats_btn.clicked.connect(self.showStats)
+        top_bar.addWidget(stats_btn)
+        
         # 创建设置按钮
         settings_btn = QPushButton()
         settings_btn.setFixedSize(32, 32)  # 设置固定大小
@@ -192,6 +255,7 @@ class MainWindow(QMainWindow):
         icon_path = Path(__file__).parent / 'resources' / 'icons' / 'settings.svg'
         settings_btn.setIcon(QIcon(str(icon_path)))
         settings_btn.setIconSize(QSize(20, 20))  # 设置图标大小
+        settings_btn.setToolTip("设置")
         settings_btn.clicked.connect(self.showSettings)
         top_bar.addWidget(settings_btn)
         
@@ -229,6 +293,11 @@ class MainWindow(QMainWindow):
         show_action = QAction('显示主窗口', self)
         show_action.triggered.connect(self.show)
         tray_menu.addAction(show_action)
+        
+        # 添加统计菜单项
+        stats_action = QAction('查看统计', self)
+        stats_action.triggered.connect(self.showStats)
+        tray_menu.addAction(stats_action)
         
         self.mute_action = QAction('静音提醒', self)
         self.mute_action.setCheckable(True)
@@ -312,6 +381,23 @@ class MainWindow(QMainWindow):
             self.resetTimer()
             # 更新托盘菜单的静音状态
             self.mute_action.setChecked(self.config.get('mute'))
+    
+    def showStats(self) -> None:
+        """显示统计对话框。"""
+        try:
+            dialog = StatsDialog(self)
+            dialog.exec()
+        except Exception as e:
+            print(f"显示统计对话框时出错: {e}")
+            import traceback
+            traceback.print_exc()
+            # 显示错误消息框
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self, 
+                "错误", 
+                f"无法显示统计信息: {str(e)}\n\n请确保已安装所有依赖并重新启动应用程序。"
+            )
     
     def onTrayIconActivated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         """处理托盘图标的激活事件。"""
