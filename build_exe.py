@@ -3,6 +3,7 @@
 """
 import PyInstaller.__main__
 import os
+import sys
 from pathlib import Path
 
 def main():
@@ -15,6 +16,9 @@ def main():
     # 设置图标路径
     icon_path = current_dir / 'heshui' / 'resources' / 'icons' / 'drink.ico'
     
+    # 根据操作系统设置路径分隔符
+    separator = ';' if os.name == 'nt' else ':'
+    
     # 设置打包参数
     params = [
         'run.py',  # 主程序文件
@@ -23,9 +27,13 @@ def main():
         f'--icon={icon_path}',  # 设置应用图标
         '--noconfirm',  # 覆盖输出目录
         '--clean',  # 清理临时文件
-        '--add-data=heshui/resources/icons;heshui/resources/icons',  # 添加资源文件
+        f'--add-data=heshui/resources/icons{separator}heshui/resources/icons',  # 添加资源文件
         '--hidden-import=PyQt6.QtSvg',  # 添加必要的隐藏导入
         '--hidden-import=PyQt6.QtSvgWidgets',
+        '--hidden-import=matplotlib',
+        '--hidden-import=matplotlib.backends.backend_qtagg',
+        '--exclude-module=tkinter',  # 排除不需要的模块
+        '--exclude-module=numpy.random._examples',
         '--onefile',  # 打包成单个文件
     ]
     
