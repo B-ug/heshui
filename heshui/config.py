@@ -17,7 +17,6 @@ class Config:
     
     _instance = None
     _default_config = {
-        "reminder_interval": 30,  # 提醒间隔（分钟）
         "daily_goal": 2000,  # 每日目标饮水量（ml）
         "reminder_text": "该喝水啦！补充水分很重要哦~",  # 提醒文本
         "mute": False,  # 是否静音
@@ -42,7 +41,11 @@ class Config:
         try:
             if self.config_file.exists():
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    self._config = {**self._default_config, **json.load(f)}
+                    loaded_config = json.load(f)
+                    # 移除旧的 reminder_interval 配置项
+                    if 'reminder_interval' in loaded_config:
+                        del loaded_config['reminder_interval']
+                    self._config = {**self._default_config, **loaded_config}
             else:
                 self._config = self._default_config.copy()
         except Exception:

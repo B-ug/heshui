@@ -3,7 +3,7 @@
 包含主窗口和系统托盘的实现。
 """
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from typing import Optional
 import os
 from pathlib import Path
@@ -202,6 +202,9 @@ class MainWindow(QMainWindow):
         # 设置应用程序图标
         icon_path = Path(__file__).parent / 'resources' / 'icons' / 'drink.ico'
         self.setWindowIcon(QIcon(str(icon_path)))
+        
+        # 上次提醒的时间点，用于避免重复提醒
+        self.last_reminder_time = None
     
     def initUI(self) -> None:
         """初始化用户界面。"""
@@ -319,19 +322,65 @@ class MainWindow(QMainWindow):
     def setupTimer(self) -> None:
         """设置定时器。"""
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.showReminder)
-        self.resetTimer()
+        self.timer.timeout.connect(self.checkReminderTimes)
+        # 每分钟检查一次
+        self.timer.start(60 * 1000)  # 60秒 = 1分钟
+        
+        # 初始显示下一次提醒时间
+        self.updateNextReminderDisplay()
     
-    def resetTimer(self) -> None:
-        """重置定时器。"""
-        interval = self.config.get('reminder_interval') * 60 * 1000  # 转换为毫秒
-        self.timer.start(interval)
-        self.updateNextReminderTime()
+    def checkReminderTimes(self) -> None:
+        """检查当前时间是否匹配任何提醒时间点。"""
+        current_time = datetime.now().time()
+        current_time = time(current_time.hour, current_time.minute)
+        
+        # 获取所有提醒时间点
+        reminder_times = self.db.get_reminder_times()
+        
+        # 检查当前时间是否匹配任何提醒时间点
+        for reminder_time in reminder_times:
+            if (current_time.hour == reminder_time.hour and 
+                current_time.minute == reminder_time.minute):
+                # 避免在同一分钟内重复提醒
+                if self.last_reminder_time != current_time:
+                    self.showReminder()
+                    self.last_reminder_time = current_time
+                break
+        
+        # 更新下一次提醒时间显示
+        self.updateNextReminderDisplay()
     
-    def updateNextReminderTime(self) -> None:
-        """更新下次提醒时间显示。"""
-        next_time = datetime.now() + timedelta(minutes=self.config.get('reminder_interval'))
-        self.next_reminder_label.setText(f'下次提醒: {next_time.strftime("%H:%M")}')
+    def updateNextReminderDisplay(self) -> None:
+        """更新下一次提醒时间显示。"""
+        next_time = self.getNextReminderTime()
+        if next_time:
+            self.next_reminder_label.setText(f'下次提醒: {next_time.strftime("%H:%M")}')
+        else:
+            self.next_reminder_label.setText('没有设置提醒时间')
+    
+    def getNextReminderTime(self) -> datetime:
+        """获取下一次提醒时间。
+        
+        Returns:
+            datetime: 下一次提醒时间，如果没有设置提醒时间则返回 None
+        """
+        current_time = datetime.now()
+        current_time_only = current_time.time()
+        
+        # 获取所有提醒时间点
+        reminder_times = sorted(self.db.get_reminder_times())
+        if not reminder_times:
+            return None
+        
+        # 查找今天的下一个提醒时间点
+        for t in reminder_times:
+            if t > current_time_only:
+                next_time = datetime.combine(current_time.date(), t)
+                return next_time
+        
+        # 如果今天没有更多提醒，则返回明天的第一个提醒
+        next_time = datetime.combine(current_time.date() + timedelta(days=1), reminder_times[0])
+        return next_time
     
     def updateStatus(self) -> None:
         """更新状态显示。"""
@@ -347,7 +396,7 @@ class MainWindow(QMainWindow):
         amount = 200  # 默认饮水量
         self.db.add_record(amount)
         self.updateStatus()
-        self.resetTimer()
+        self.updateNextReminderDisplay()  # 更新下一次提醒时间显示
         self.drink_recorded.emit()
         
         # 显示成功提示
@@ -378,7 +427,7 @@ class MainWindow(QMainWindow):
         if dialog.exec() == SettingsDialog.DialogCode.Accepted:  # 注意这里的改动
             # 更新UI显示
             self.updateStatus()
-            self.resetTimer()
+            self.updateNextReminderDisplay()  # 更新下一次提醒时间显示
             # 更新托盘菜单的静音状态
             self.mute_action.setChecked(self.config.get('mute'))
     
