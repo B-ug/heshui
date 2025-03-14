@@ -32,6 +32,12 @@ def main():
         '--hidden-import=PyQt6.QtSvgWidgets',
         '--hidden-import=matplotlib',
         '--hidden-import=matplotlib.backends.backend_qtagg',
+        # 添加pywin32相关的隐藏导入
+        '--hidden-import=win32api',
+        '--hidden-import=win32con',
+        '--hidden-import=win32com',
+        '--hidden-import=win32com.client',
+        '--hidden-import=pythoncom',
         '--exclude-module=tkinter',  # 排除不需要的模块
         '--exclude-module=numpy.random._examples',
         '--onefile',  # 打包成单个文件
