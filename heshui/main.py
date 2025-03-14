@@ -12,7 +12,8 @@ from PyQt6.QtCore import QTimer, Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QIcon, QPainter, QAction, QConicalGradient, QColor, QPen
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QMenu, QSystemTrayIcon,
                            QWidget, QVBoxLayout, QPushButton, QLabel,
-                           QProgressBar, QMessageBox, QHBoxLayout, QDialog)
+                           QProgressBar, QMessageBox, QHBoxLayout, QDialog,
+                           QSpinBox, QComboBox, QDialogButtonBox, QFormLayout)
 
 from heshui.config import Config
 from heshui.models import DatabaseManager
@@ -184,6 +185,75 @@ class StatsDialog(QDialog):
             print(f"初始化统计对话框时出错: {e}")
             import traceback
             traceback.print_exc()
+
+
+class DrinkAmountDialog(QDialog):
+    """饮水量选择对话框。
+    
+    允许用户选择预设饮水量或输入自定义饮水量。
+    """
+    
+    def __init__(self, parent=None):
+        """初始化饮水量选择对话框。
+        
+        Args:
+            parent: 父窗口
+        """
+        super().__init__(parent)
+        self.setWindowTitle("记录饮水量")
+        self.setMinimumWidth(300)
+        
+        # 创建布局
+        layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+        
+        # 创建预设选择下拉框
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItem("选择预设量...", 0)
+        self.preset_combo.addItem("小口 (100ml)", 100)
+        self.preset_combo.addItem("小杯 (200ml)", 200)
+        self.preset_combo.addItem("中杯 (350ml)", 350)
+        self.preset_combo.addItem("大杯 (500ml)", 500)
+        self.preset_combo.addItem("水瓶 (750ml)", 750)
+        self.preset_combo.currentIndexChanged.connect(self.on_preset_changed)
+        form_layout.addRow("预设饮水量:", self.preset_combo)
+        
+        # 创建自定义输入框
+        self.custom_spinbox = QSpinBox()
+        self.custom_spinbox.setRange(50, 2000)  # 设置范围从50ml到2000ml
+        self.custom_spinbox.setSingleStep(50)  # 步长为50ml
+        self.custom_spinbox.setValue(200)  # 默认值为200ml
+        self.custom_spinbox.setSuffix(" ml")  # 添加单位后缀
+        form_layout.addRow("自定义饮水量:", self.custom_spinbox)
+        
+        layout.addLayout(form_layout)
+        
+        # 添加按钮
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+    
+    def on_preset_changed(self, index: int) -> None:
+        """处理预设选择变化。
+        
+        Args:
+            index: 选择的索引
+        """
+        # 获取选中项的数据
+        amount = self.preset_combo.currentData()
+        if amount > 0:
+            self.custom_spinbox.setValue(amount)
+    
+    def get_amount(self) -> int:
+        """获取选择的饮水量。
+        
+        Returns:
+            int: 饮水量（毫升）
+        """
+        return self.custom_spinbox.value()
 
 
 class MainWindow(QMainWindow):
@@ -392,20 +462,38 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f'今日已饮水: {total}ml / {goal}ml')
     
     def recordDrink(self) -> None:
-        """记录饮水。"""
-        amount = 200  # 默认饮水量
-        self.db.add_record(amount)
-        self.updateStatus()
-        self.updateNextReminderDisplay()  # 更新下一次提醒时间显示
-        self.drink_recorded.emit()
+        """记录饮水。
         
-        # 显示成功提示
-        self.tray_icon.showMessage(
-            '记录成功',
-            f'已记录饮水 {amount}ml',
-            QSystemTrayIcon.MessageIcon.Information,
-            2000
-        )
+        打开对话框让用户选择或输入饮水量，然后记录到数据库。
+        """
+        try:
+            # 创建并显示饮水量选择对话框
+            dialog = DrinkAmountDialog(self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                # 获取用户选择的饮水量
+                amount = dialog.get_amount()
+                
+                # 记录到数据库
+                self.db.add_record(amount)
+                self.updateStatus()
+                self.updateNextReminderDisplay()  # 更新下一次提醒时间显示
+                self.drink_recorded.emit()
+                
+                # 显示成功提示
+                self.tray_icon.showMessage(
+                    '记录成功',
+                    f'已记录饮水 {amount}ml',
+                    QSystemTrayIcon.MessageIcon.Information,
+                    2000
+                )
+        except Exception as e:
+            # 显示错误消息
+            QMessageBox.critical(
+                self,
+                "错误",
+                f"记录饮水时出错: {str(e)}",
+                QMessageBox.StandardButton.Ok
+            )
     
     def showReminder(self) -> None:
         """显示提醒。"""
