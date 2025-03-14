@@ -158,11 +158,62 @@ class DatabaseManager:
         """获取所有提醒时间点。
         
         Returns:
-            List[time]: 提醒时间点列表，按时间排序
+            List[time]: 提醒时间点列表
         """
         with self.Session() as session:
-            times = session.query(ReminderTime).order_by(ReminderTime.time).all()
-            return [t.time for t in times]
+            reminder_times = session.query(ReminderTime).all()
+            return [rt.time for rt in reminder_times]
+    
+    def get_day_records(self, date: datetime) -> List[Tuple[str, int]]:
+        """获取特定日期的饮水记录，按小时分组。
+        
+        Args:
+            date: 要查询的日期
+            
+        Returns:
+            List[Tuple[str, int]]: 包含小时和饮水量的元组列表，格式为 [(小时字符串, 饮水量), ...]
+        """
+        try:
+            # 计算日期的开始和结束时间
+            start_time = datetime.combine(date.date(), time.min)
+            end_time = datetime.combine(date.date(), time.max)
+            
+            # 使用原生SQL查询按小时分组统计
+            conn = sqlite3.connect('drink_records.db')
+            cursor = conn.cursor()
+            
+            # 准备查询，按小时分组获取每小时的总饮水量
+            query = """
+            SELECT strftime('%H', timestamp) as hour, SUM(amount) as total
+            FROM drink_records
+            WHERE timestamp >= ? AND timestamp <= ?
+            GROUP BY hour
+            ORDER BY hour
+            """
+            
+            cursor.execute(
+                query,
+                (
+                    start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    end_time.strftime('%Y-%m-%d %H:%M:%S')
+                )
+            )
+            results = cursor.fetchall()
+            conn.close()
+            
+            # 确保24小时都有数据，没有记录的小时设为0
+            hour_dict = {f"{i:02d}" : 0 for i in range(24)}
+            
+            # 更新有记录的小时
+            for hour, amount in results:
+                hour_dict[hour] = amount
+            
+            # 转换为有序列表
+            return [(f"{hour}:00", amount) for hour, amount in hour_dict.items()]
+            
+        except Exception as e:
+            print(f"获取日数据时出错: {e}")
+            return [(f"{i:02d}:00", 0) for i in range(24)]  # 返回空数据
     
     def add_reminder_time(self, reminder_time: time) -> bool:
         """添加新的提醒时间点。

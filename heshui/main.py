@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QMenu, QSystemTrayIcon,
 from heshui.config import Config
 from heshui.models import DatabaseManager
 from heshui.settings import SettingsDialog
-from heshui.stats import WeeklyStatsWidget
+from heshui.stats import StatsTabWidget
 
 
 class CircularProgress(QWidget):
@@ -163,12 +163,12 @@ class StatsDialog(QDialog):
         try:
             layout = QVBoxLayout(self)
             
-            # 添加周统计视图
+            # 添加统计视图标签页
             try:
-                self.weekly_stats = WeeklyStatsWidget(self)
-                layout.addWidget(self.weekly_stats)
+                self.stats_tab = StatsTabWidget(self)
+                layout.addWidget(self.stats_tab)
             except Exception as e:
-                print(f"创建周统计视图时出错: {e}")
+                print(f"创建统计视图时出错: {e}")
                 error_label = QLabel(f"无法加载统计图表: {str(e)}")
                 error_label.setWordWrap(True)
                 error_label.setStyleSheet("color: red;")
